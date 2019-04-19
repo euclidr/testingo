@@ -1,0 +1,45 @@
+version: '3.1'
+
+services:
+  mysqltest:
+    image: mysql:5.7
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --default-storage-engine=Memory
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - 33061:3306
+
+  waitformysqltest:
+    image: mysql:5.7
+    command: >
+      /bin/bash -c "maxcounter=45;
+                    counter=1;
+                    while ! mysql --protocol TCP -hdbhost -uroot -proot -e 'show databases;' > /dev/null 2>&1; do
+                      sleep 1
+                      counter=`expr $${counter} + 1`
+                      if [ $${counter} -gt $${maxcounter} ]; then
+                        echo 'We have been waiting for MySQL too long already; failing.'
+                        exit 1
+                      fi;
+                    done"
+    links:
+      - mysqltest:dbhost
+
+  testdatafiller:
+    image: mysql:5.7
+    depends_on:
+      - mysqltest
+    command: /bin/bash -c "mysql -hdbhost -uroot -proot </data/databases/schema.sql"
+    links:
+      - mysqltest:dbhost
+    volumes:
+      - ./databases:/data/databases
+
+  adminer:
+    image: adminer
+    links:
+      - mysqltest:db
+    ports:
+      - 6189:8080
